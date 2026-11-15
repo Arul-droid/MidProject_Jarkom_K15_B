@@ -7,7 +7,6 @@
 1. [Nayarfa Syamahira Dyamanta]  - [5027251046] *(Soal 2 - sebagian , 6 , 8 )*
 2. [Nama Anggota 2] - [NRP] *(Soal ...)*
 3. [Muhamad Nasrulhaq] - [5027251117] *(Soal 1, 3, 4)*
-4. [Nama Anggota 4] - [NRP] *(Soal ...)*
 
 ---
 
@@ -30,6 +29,7 @@
 ### 1.1 Gambar Topologi Keseluruhan
 Berikut adalah hasil perancangan topologi jaringan *Smart City* Kota Surabaya pada Cisco Packet Tracer menggunakan skema pengalamatan **VLSM (*Variable Length Subnet Mask*)**:
 
+![alt text](<assets/topologi ets.jpeg>)
 ![Topologi utama jaringan Smart City Surabaya](./assets/topologi.png)
 
 ---
