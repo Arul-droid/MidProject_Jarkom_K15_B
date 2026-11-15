@@ -450,15 +450,94 @@ write memory
 
 ### 3.4 Soal 6: Tunnel GRE
 
-> **[PLACEHOLDER SOAL 6 - BAGIAN REKAN KELOMPOK]**  
-> *Silakan lengkapi penjelasan konfigurasi Tunnel GRE antara `R-PUSAT` dan `R-PELABUHAN`, alasan pemilihan jalur tunnel oleh router, alasan mengapa GRE tidak mengenkripsi data, serta konfigurasi IPsec (jika mengerjakan bonus).*
+#### Konfigurasi Tambahan Tunnel GRE
 
-* **Penjelasan Konfigurasi Tunnel GRE & Pemilihan Jalur:** `[Placeholder Penjelasan GRE]`
-* **Mengapa GRE Tidak Mengenkripsi Data:** `[Placeholder Penjelasan Keamanan GRE]`
-* **Blok Perintah CLI pada `R-PUSAT` dan `R-PELABUHAN`:**
+Konfigurasi di bawah ini **hanya tambahan untuk Soal 6**, ditambahkan di atas konfigurasi Soal 3 & 4 yang sudah ada.
+
+#### R-PUSAT
+
 ```text
-! [Placeholder Konfigurasi Interface Tunnel 0 dan Static Route via Tunnel]
+enable
+configure terminal
+
+! --- Interface Tunnel GRE ---
+interface Tunnel0
+ description GRE ke R-PELABUHAN
+ ip address 192.168.15.1 255.255.255.252
+ tunnel source FastEthernet0/1
+ tunnel destination 10.120.241.54
+ tunnel mode gre ip
+ no shutdown
+ exit
+
+! --- Rute ke IP fisik R-PELABUHAN (link L6) ---
+! Wajib ada: default route R-PUSAT mengarah ke R-ISP, jadi tanpa rute ini
+! tunnel destination 10.120.241.54 tidak bisa dijangkau.
+ip route 10.120.241.52 255.255.255.252 10.120.241.38
+
+! --- Rute utama ke subnet Pelabuhan lewat tunnel (AD = 1) ---
+ip route 10.120.160.0 255.255.224.0 192.168.15.2
+ip route 10.120.240.0 255.255.255.128 192.168.15.2
+
+! --- Rute cadangan lewat R-UTARA (floating static, AD = 5) ---
+ip route 10.120.160.0 255.255.224.0 10.120.241.38 5
+ip route 10.120.240.0 255.255.255.128 10.120.241.38 5
+
+end
+write memory
 ```
+
+#### R-PELABUHAN
+
+```text
+enable
+configure terminal
+
+! --- Interface Tunnel GRE ---
+interface Tunnel0
+ description GRE ke R-PUSAT
+ ip address 192.168.15.2 255.255.255.252
+ tunnel source GigabitEthernet0/0
+ tunnel destination 10.120.241.37
+ tunnel mode gre ip
+ no shutdown
+ exit
+
+! --- Rute ke IP fisik R-PUSAT (link L2) ---
+ip route 10.120.241.36 255.255.255.252 10.120.241.53
+
+! --- Rute ke subnet Balai Kota lewat tunnel ---
+ip route 10.120.224.0 255.255.248.0 192.168.15.1
+ip route 10.120.241.0 255.255.255.224 192.168.15.1
+
+end
+write memory
+```
+
+#### Uji dari PC (bukti lalu lintas lewat tunnel)
+
+Cek dulu IP PC tujuan lewat **Desktop → IP Configuration**, karena IP dari DHCP bisa berbeda.
+
+Dari **PC Pegawai Balai Kota** → **Desktop → Command Prompt**:
+
+```text
+tracert <IP PC Kantor Pelabuhan>
+```
+
+**Hasil yang benar:**
+
+![alt text](image.png)
+
+
+#### Mengapa router memilih jalur tunnel dibanding jalur lain ke Pelabuhan?
+
+- **Di R-PUSAT:** ada dua rute ke subnet Pelabuhan dengan prefix yang sama. Rute lewat tunnel (`via 192.168.15.2`) memakai **Administrative Distance 1**, sedangkan rute lewat R-UTARA (`via 10.120.241.38`) memakai **AD 5** (*floating static route*). Router selalu memasang rute dengan AD terkecil ke tabel routing, jadi jalur tunnel menjadi jalur utama. Rute lewat R-UTARA hanya dipakai sebagai cadangan kalau rute tunnel hilang.
+- **Di R-PELABUHAN:** jalur lain menuju Balai Kota hanya lewat *default route* `0.0.0.0/0 via 10.120.241.53`. Rute lewat tunnel memakai prefix yang jauh lebih spesifik (`/21` dan `/27`). Berdasarkan aturan **Longest Prefix Match**, router selalu memilih rute dengan prefix paling panjang, jadi lalu lintas ke Balai Kota masuk ke tunnel.
+
+#### Mengapa GRE saja tidak mengenkripsi data?
+
+GRE (*Generic Routing Encapsulation*, RFC 2784) adalah protokol **enkapsulasi**, bukan protokol keamanan. Tugasnya hanya membungkus paket asli dengan header GRE dan header IP baru, supaya paket bisa dikirim lewat jalur virtual *point-to-point*. GRE **tidak punya mekanisme kriptografi**: tidak ada enkripsi, tidak ada pengecekan integritas, dan tidak ada autentikasi. Akibatnya, isi paket di dalam tunnel tetap *plaintext* dan bisa dibaca oleh siapa pun yang menyadap jalur di tengah (misalnya di R-UTARA). Ini terlihat di Simulation Mode: header ICMP dan IP dalam tetap terbaca utuh. Untuk mengenkripsi data, GRE harus dikombinasikan dengan **IPsec** (GRE over IPsec).
+
 
 ---
 
@@ -477,13 +556,204 @@ write memory
 
 ### 3.6 Soal 8: Layanan Aplikasi Smart City
 
-> **[PLACEHOLDER SOAL 8 - BAGIAN REKAN KELOMPOK]**  
-> *Silakan lengkapi penjelasan konfigurasi domain `k15.smartcity.lab` untuk layanan DNS, Web Server, FTP Server, dan Email Server.*
+### Soal 8a – DNS
 
-1. **Layanan DNS (`SRV-DC`):** `[Placeholder Penjelasan Record DNS www, ftp, mail]`
-2. **Layanan Web Portal (`SRV-BALAIKOTA`):** `[Placeholder Penjelasan HTTP/HTML Portal Smart City]`
-3. **Layanan FTP Penyimpanan CCTV (`SRV-DC`):** `[Placeholder Penjelasan Akun dan Hak Akses FTP]`
-4. **Layanan Email Antarpegawai:** `[Placeholder Penjelasan Konfigurasi Mail Server dan Akun Pegawai]`
+> **Ketentuan:** DNS di LAN Server dan Storage DC. Nama `www`, `ftp`, dan `mail` dapat diakses dari seluruh wilayah.
+
+####  Konfigurasi
+
+**Server dan Storage DC → Services → DNS**
+
+1. **DNS Service: On**
+2. Tambahkan record berikut (Type `A Record`, klik **Add** di setiap baris):
+
+| Name | Type | Address | Mengarah ke |
+|---|---|---|---|
+| `k15.smartcity.lab` | A Record | `10.120.241.2` | Server Balai Kota |
+| `www.k15.smartcity.lab` | A Record | `10.120.241.2` | Server Balai Kota (Web) |
+| `ftp.k15.smartcity.lab` | A Record | `10.120.239.2` | Server dan Storage DC (FTP) |
+| `mail.k15.smartcity.lab` | A Record | `10.120.241.2` | Server Balai Kota (Email) |
+
+#### Command Pengujian
+
+Dari PC klien → **Desktop → Command Prompt**:
+
+```text
+ping www.k15.smartcity.lab
+ping ftp.k15.smartcity.lab
+ping mail.k15.smartcity.lab
+```
+
+**Hasil yang benar:** setiap nama domain diterjemahkan ke IP yang sesuai dan mendapat **Reply**.
+
+#### Hasil
+
+![alt text](image-1.png)
+
+**Analisis:**
+
+- `www.k15.smartcity.lab` → `10.120.241.2` ✅
+- `ftp.k15.smartcity.lab` → `10.120.239.2` ✅
+- `mail.k15.smartcity.lab` → `10.120.241.2` ✅
+- Satu `Request timed out` di ping pertama itu normal. Paket pertama tertunda karena router masih mencari alamat MAC tujuan (proses ARP). Paket berikutnya semua berhasil.
+
+---
+
+#### – Soal 8b Web Portal
+
+> **Ketentuan:** Web di LAN Server Balai Kota, berupa halaman "Portal Smart City Surabaya" yang mencantumkan nomor kelompok, dan dapat dibuka dengan nama domain dari semua wilayah.
+
+#### Konfigurasi
+
+**Server Balai Kota → Services → HTTP**
+
+1. **HTTP: On** dan **HTTPS: On**
+2. Edit file **`index.html`**, ganti isinya dengan:
+
+```html
+<html>
+<head>
+  <title>Portal Smart City Surabaya</title>
+</head>
+<body style="font-family: Arial, sans-serif; text-align: center; margin-top: 40px;">
+  <h1 style="color: #0056b3;">Portal Smart City Surabaya</h1>
+  <h2>Kelompok 15</h2>
+  <hr>
+  <p>Selamat datang di Portal Resmi Layanan Terpadu Smart City Pemerintah Kota Surabaya.</p>
+  <p>Domain Internal: <b>www.k15.smartcity.lab</b></p>
+</body>
+</html>
+```
+
+3. Klik **Save**, lalu **Yes** untuk menimpa file lama.
+
+#### Command Pengujian
+
+Dari PC di wilayah mana saja → **Desktop → Web Browser**, isi URL:
+
+```text
+http://www.k15.smartcity.lab
+```
+
+Lalu klik **Go**.
+
+#### Hasil
+
+![alt text](image-2.png)
+
+**Analisis:** halaman dibuka dari **PJU Pintar Selatan** (LAN di bawah R-SELATAN), yaitu wilayah yang berbeda dari lokasi server. Halaman tampil lengkap dengan judul **"Portal Smart City Surabaya"** dan **"Kelompok 15"**, dan diakses memakai nama domain, bukan IP. ✅
+
+---
+
+### Soal 8c – FTP Rekaman CCTV
+
+> **Ketentuan:** FTP di LAN Server dan Storage DC sebagai penyimpanan rekaman CCTV, dengan akun login. Perangkat di LAN CCTV Kota dapat mengunggah file ke sana.
+
+#### Konfigurasi
+
+**Server dan Storage DC → Services → FTP**
+
+1. **FTP Service: On**
+2. Tambahkan akun di **User Setup**, lalu klik **Add**:
+
+| Username | Password | Permission |
+|---|---|---|
+| `cctv` | `cctv123` | Write, Read, Delete, Rename, List |
+
+#### Command Pengujian
+
+**Langkah 1, buat file rekaman** di **PC CCTV Kota → Desktop → Text Editor**. Isi teks bebas, lalu simpan dengan nama `cctv.txt`.
+
+**Langkah 2, unggah file** lewat **PC CCTV Kota → Desktop → Command Prompt**:
+
+```text
+ftp ftp.k15.smartcity.lab
+```
+
+Saat diminta login:
+
+```text
+Username: cctv
+Password: cctv123
+```
+
+Setelah muncul `ftp>`:
+
+```text
+put cctv.txt
+dir
+quit
+```
+
+**Hasil yang benar:** muncul `230- Logged in`, lalu `Transfer complete`, dan `cctv.txt` ada di daftar `dir`.
+
+#### Hasil
+
+![alt text](image-3.png)
+
+
+**Analisis:**
+
+- Koneksi ke `ftp.k15.smartcity.lab` berhasil memakai nama domain (DNS 8a bekerja). ✅
+- Login dengan akun `cctv` berhasil: `230- Logged in`. ✅
+- Upload `cctv.txt` berhasil: `Transfer complete - 39 bytes`. ✅
+- Perintah `dir` menampilkan `cctv.txt` (nomor 24, 39 byte) di direktori FTP server. ✅
+- PC CCTV Kota memakai IP DHCP `10.120.96.10` dari DHCP server di LAN Server dan Storage DC (Soal 4).
+
+---
+
+### Soal 8d – Email Antarpegawai
+
+> **Ketentuan:** Pengguna di Balai Kota dan Pelabuhan dapat saling mengirim dan menerima email.
+
+#### Konfigurasi Server
+
+**Server Balai Kota → Services → EMAIL**
+
+1. **SMTP Service: On** dan **POP3 Service: On**
+2. **Domain Name:** `k15.smartcity.lab`, lalu klik **Set**
+3. Tambahkan akun (klik **+** setiap akun):
+
+| User | Password | Alamat Email |
+|---|---|---|
+| `balaikota` | `12345` | `balaikota@k15.smartcity.lab` |
+| `pelabuhan` | `12345` | `pelabuhan@k15.smartcity.lab` |
+
+#### Konfigurasi Klien
+
+**Desktop → Email → Configure Mail**, lalu klik **Save**:
+
+| Field | PC Pegawai Balai Kota | PC Kantor Pelabuhan |
+|---|---|---|
+| Your Name | `Pegawai Balai Kota` | `Pegawai Pelabuhan` |
+| Email Address | `balaikota@k15.smartcity.lab` | `pelabuhan@k15.smartcity.lab` |
+| Incoming Mail Server | `mail.k15.smartcity.lab` | `mail.k15.smartcity.lab` |
+| Outgoing Mail Server | `mail.k15.smartcity.lab` | `mail.k15.smartcity.lab` |
+| Username | `balaikota` | `pelabuhan` |
+| Password | `12345` | `12345` |
+
+#### Langkah Pengujian
+
+1. **PC Pegawai Balai Kota → Email → Compose**
+   - To: `pelabuhan@k15.smartcity.lab`
+   - Subject: `Ngetes rek`
+   - Isi: `tes tes 1 2 3`
+   - Klik **Send**
+2. **PC Kantor Pelabuhan → Email → Receive**, lalu buka pesan yang masuk.
+3. Klik **Reply**, isi `halo , pesan masuk rek`, lalu klik **Send**.
+4. **PC Pegawai Balai Kota → Email → Receive**, lalu buka balasannya.
+
+#### Hasil
+
+![alt text](image-4.png)
+
+**Analisis:**
+
+- **Kanan (Kantor Pelabuhan):** email dari `balaikota@k15.smartcity.lab` ke `pelabuhan@k15.smartcity.lab` dengan subject *"Ngetes rek"* berhasil diterima. ✅
+- **Kiri (Pegawai Balai Kota):** balasan *"RE: Ngetes rek"* dari `pelabuhan@k15.smartcity.lab` berhasil diterima. ✅
+- Email berhasil dikirim dan diterima **dua arah**. Lalu lintas email dari Kantor Pelabuhan ke Server Balai Kota (`10.120.241.0/27`) melewati **Tunnel GRE** dari Soal 6.
+
+
 
 ---
 
@@ -555,7 +825,8 @@ write memory
 ### 4.6 Bukti Pengujian Soal 6 (Tunnel GRE)
 > **[PLACEHOLDER BUKTI SOAL 6 - BAGIAN REKAN KELOMPOK]**
 * **Bukti Status Interface Tunnel Up & Output `tracert` dari Balai Kota ke Pelabuhan melewati IP Tunnel:**
-  ![Placeholder Bukti Tunnel GRE](./screenshots/placeholder_bukti_soal6_gre.png)
+
+  ![alt text](image.png)
 
 ---
 
@@ -568,9 +839,19 @@ write memory
 
 ### 4.8 Bukti Pengujian Soal 8 (Layanan Aplikasi Smart City)
 > **[PLACEHOLDER BUKTI SOAL 8 - BAGIAN REKAN KELOMPOK]**
-1. **Bukti Akses Web Browser Portal Smart City (`www.k15.smartcity.lab`):**
-   ![Placeholder Bukti Web](./screenshots/placeholder_bukti_soal8_web.png)
-2. **Bukti Upload Rekaman dari PC CCTV Kota ke FTP Server (`ftp.k15.smartcity.lab`):**
-   ![Placeholder Bukti FTP](./screenshots/placeholder_bukti_soal8_ftp.png)
-3. **Bukti Pengiriman & Penerimaan Email Antarpegawai Balai Kota dan Pelabuhan:**
-   ![Placeholder Bukti Email](./screenshots/placeholder_bukti_soal8_email.png)
+1. **Bukti 8 - A:**
+
+![alt text](image-1.png)   
+
+2. **Bukti 8 - B:**
+
+![alt text](image-2.png)
+   
+3. **Bukti 8 - D:**
+
+![alt text](image-3.png)
+
+4. **Bukti 8 - D:**
+
+![alt text](image-4.png)
+   
