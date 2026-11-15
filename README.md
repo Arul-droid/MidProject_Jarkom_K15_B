@@ -4,7 +4,7 @@
 **Kelompok:** K15 *(Sesuaikan jika berbeda)*  
 **Kelas:** [Isi Kelas Anda]  
 **Anggota Kelompok:**
-1. [Nama Anggota 1] - [NRP] *(Soal ...)*
+1. [Nayarfa Syamahira Dyamanta]  - [5027251046] *(Soal 2 - sebagian , 6 , 8 )*
 2. [Nama Anggota 2] - [NRP] *(Soal ...)*
 3. [Muhamad Nasrulhaq] - [5027251117] *(Soal 1, 3, 4)*
 4. [Nama Anggota 4] - [NRP] *(Soal ...)*
