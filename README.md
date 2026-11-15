@@ -1,11 +1,11 @@
 # Dokumentasi Mid-Project Komunikasi Data dan Jaringan Komputer
 ## Implementasi Jaringan Smart City Kota Surabaya
 
-**Kelompok:** K15 *(Sesuaikan jika berbeda)*  
-**Kelas:** [Isi Kelas Anda]  
+**Kelompok:** K15 
+**Kelas:** B 
 **Anggota Kelompok:**
-1. [Nayarfa Syamahira Dyamanta]  - [5027251046] *(Soal 2 - sebagian , 6 , 8 )*
-2. [Nama Anggota 2] - [NRP] *(Soal ...)*
+1. [Nayarfa Syamahira Dyamanta]  - [5027251046] *(Soal 2-CIDR, 6, 8 )*
+2. [Nayla Aisha Hanifa] - [5027251075] *(Soal 2-VLSM , 5, 7)*
 3. [Muhamad Nasrulhaq] - [5027251117] *(Soal 1, 3, 4)*
 
 ---
@@ -67,22 +67,15 @@ Sesuai dengan ketentuan perancangan, berikut adalah rincian arsitektur, pemiliha
 ---
 
 ## 2. Soal 2: Tabel Subnetting (VLSM & CIDR)
+![alt text](assets/image-5.png)
+![alt text](assets/image-6.png)
+VLSM
+![alt text](assets/image-7.png)
+CIDR
+![alt text](assets/image-8.png)
+SUPERNET
+![alt text](assets/image-9.png)
 
-> **[PLACEHOLDER SOAL 2 - BAGIAN REKAN KELOMPOK]**  
-> *Silakan lengkapi tabel perhitungan VLSM, CIDR (Supernetting), dan Tabel Revisi UTS di bagian ini.*
-
-### 2.1 Tabel Alokasi Pengalamatan VLSM
-| No | Nama Subnet / Lokasi | Kebutuhan Host | Network ID | Prefix | Subnet Mask | Rentang Host Valid | Broadcast Address | Gateway |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 1 | WiFi Publik Utara | 11.000 | `10.120.0.0` | `/18` | `255.255.192.0` | `10.120.0.1` - `10.120.63.254` | `10.120.63.255` | `10.120.0.1` |
-| 2 | WiFi Publik Selatan | 6.500 | `10.120.64.0` | `/19` | `255.255.224.0` | `10.120.64.1` - `10.120.95.254` | `10.120.95.255` | `10.120.64.1` |
-| 3 | CCTV Kota (DC) | 6.000 | `10.120.96.0` | `/19` | `255.255.224.0` | `10.120.96.1` - `10.120.127.254` | `10.120.127.255` | `10.120.96.1` |
-| ... | *[Lengkapi sisa baris sesuai Spreadsheet]* | ... | ... | ... | ... | ... | ... | ... |
-
-### 2.2 Tabel Revisi Perhitungan UTS (Jika Ada)
-| No | Nama Subnet | Jawaban Saat UTS | Perbaikan Saat Mid-Project | Alasan Kesalahan / Perbaikan |
-| :--- | :--- | :--- | :--- | :--- |
-| 1 | *[Placeholder]* | *[Placeholder]* | *[Placeholder]* | *[Placeholder]* |
 
 ---
 
@@ -437,14 +430,68 @@ write memory
 
 ### 3.3 Soal 5: Network Address Translation (NAT)
 
-> **[PLACEHOLDER SOAL 5 - BAGIAN REKAN KELOMPOK]**  
-> *Silakan lengkapi penjelasan konsep NAT Overload (PAT) pada `R-PUSAT` serta blok perintah konfigurasinya di bawah ini.*
+#### A. Konsep dan Alasan Konfigurasi
+Soal 5 meminta seluruh *host* dapat mengakses `Server 8.8.8.8` dengan memakai **satu IP publik milik `R-PUSAT`**, sedangkan `R-ISP` **tidak boleh** memiliki rute ke alamat privat internal. Kami menggunakan **NAT Overload (PAT)** di `R-PUSAT`:
 
-* **Penjelasan Konfigurasi NAT:** `[Placeholder Penjelasan NAT]`
-* **Blok Perintah CLI pada `R-PUSAT`:**
+1. **Mengapa NAT diperlukan:** Alamat `10.120.x.x` adalah alamat privat yang tidak dapat dirutekan di internet. Karena itu, `R-PUSAT` mengganti alamat asal paket (misalnya `10.120.96.10`) menjadi satu alamat publik, yaitu `203.0.113.61` (IP `FastEthernet0/0` milik `R-PUSAT` pada link ke `R-ISP`).
+2. **Mengapa `overload` (PAT):** Banyak *host* dapat memakai satu IP publik karena `R-PUSAT` membedakan setiap sesi dengan nomor *port*. Saat balasan datang, `R-PUSAT` mengembalikan alamat tujuan ke IP privat *host* asal.
+3. **Mengapa interface harus ditandai *inside* dan *outside*:** NAT harus tahu arah lalu lintas. Interface *inside* menghadap jaringan internal, interface *outside* menghadap internet. NAT hanya bekerja pada paket yang melintas di antara keduanya. Lalu lintas antar-wilayah internal tidak ikut diterjemahkan karena tidak melewati batas tersebut. `Tunnel0` tidak ditandai *inside* karena hanya dipakai lalu lintas internal Balai Kota dan Pelabuhan, bukan menuju internet.
+4. **Mengapa `R-ISP` tidak butuh rute ke alamat privat:** Setiap paket yang sampai ke `R-ISP` sudah bersumber `203.0.113.61` (jaringan yang terhubung langsung), sehingga balasannya cukup dikirim kembali ke alamat itu. Selama `R-ISP` hanya memiliki dua rute *connected* (`8.8.8.0/24` dan `203.0.113.60/30`) tanpa *static route* dan tanpa *routing* dinamis, syarat soal terpenuhi.
+
+
+#### B. Penentuan Interface NAT pada `R-PUSAT`
+
+| Interface | Fungsi | Peran NAT |
+| :--- | :--- | :--- |
+| `FastEthernet0/0` | Link ke `R-ISP` (`203.0.113.61/30`) | `outside` |
+| `FastEthernet0/1` | L2 ke `R-UTARA` | `inside` |
+| `Ethernet0/0/0` | L1 ke `R-DC` | `inside` |
+| `Ethernet0/1/0` | L5 ke `R-BARAT` | `inside` |
+| `Ethernet0/2/0` | L4 ke `R-TIMUR` | `inside` |
+| `Ethernet0/3/0` | L3 ke `R-SELATAN` | `inside` |
+| `FastEthernet1/0` | LAN Pegawai Balai Kota | `inside` |
+| `FastEthernet1/1` | LAN Server Balai Kota | `inside` |
+
+#### C. Rincian Konfigurasi NAT pada `R-PUSAT`
 ```text
-! [Placeholder Konfigurasi Access-List dan IP NAT Inside/Outside di R-PUSAT]
+enable
+configure terminal
+
+! --- Menandai interface outside (arah R-ISP) ---
+interface FastEthernet0/0
+ ip nat outside                                      ! Sisi internet
+ exit
+
+! --- Menandai interface inside (arah jaringan internal) ---
+interface FastEthernet0/1
+ ip nat inside                                       ! L2 ke R-UTARA
+ exit
+interface Ethernet0/0/0
+ ip nat inside                                       ! L1 ke R-DC
+ exit
+interface Ethernet0/1/0
+ ip nat inside                                       ! L5 ke R-BARAT
+ exit
+interface Ethernet0/2/0
+ ip nat inside                                       ! L4 ke R-TIMUR
+ exit
+interface Ethernet0/3/0
+ ip nat inside                                       ! L3 ke R-SELATAN
+ exit
+interface FastEthernet1/0
+ ip nat inside                                       ! LAN Pegawai Balai Kota
+ exit
+interface FastEthernet1/1
+ ip nat inside                                       ! LAN Server Balai Kota
+ exit
+
+! --- Daftar alamat yang boleh di-NAT dan aturan overload ---
+access-list 1 permit 10.120.0.0 0.0.255.255          ! Seluruh blok privat 10.120.0.0/16 (semua LAN)
+ip nat inside source list 1 interface FastEthernet0/0 overload  ! Terjemahkan ke IP Fa0/0 (203.0.113.61), banyak host satu IP (PAT)
+end
+write memory
 ```
+`R-ISP` tidak diberi konfigurasi tambahan terkait NAT dan tidak memiliki *static route* ke blok privat.
 
 ---
 
@@ -526,7 +573,7 @@ tracert <IP PC Kantor Pelabuhan>
 
 **Hasil yang benar:**
 
-![alt text](image.png)
+![alt text](assets/image.png)
 
 
 #### Mengapa router memilih jalur tunnel dibanding jalur lain ke Pelabuhan?
@@ -543,14 +590,285 @@ GRE (*Generic Routing Encapsulation*, RFC 2784) adalah protokol **enkapsulasi**,
 
 ### 3.5 Soal 7: Dynamic Routing OSPF
 
-> **[PLACEHOLDER SOAL 7 - BAGIAN REKAN KELOMPOK]**  
-> *Silakan lengkapi penjelasan penambahan link cadangan L7 (`R-DC` ke `R-UTARA`), konfigurasi OSPF, `passive-interface`, `default-information originate`, dan skenario failover.*
 
-* **Penjelasan Konfigurasi OSPF & Link Cadangan L7:** `[Placeholder Penjelasan OSPF]`
-* **Blok Perintah CLI OSPF:**
+#### A. Konsep dan Alasan Konfigurasi
+
+| Ketentuan soal | Cara kami memenuhinya |
+| :--- | :--- |
+| Tambah link cadangan L7 antara `R-DC` dan `R-UTARA` dengan alamat yang belum dipakai | Memakai `10.120.241.56/30`: `R-DC` `.57` (`Fa3/0`) dan `R-UTARA` `.58` (`Fa4/0`) |
+| Ganti seluruh *static route* antar-router dengan OSPF | OSPF *process* 1, *area* 0, pada 7 router. Seluruh *static route* antar-router dihapus |
+| Router tidak mengirim pesan OSPF ke arah LAN pengguna | `passive-interface default`, lalu `no passive-interface` hanya pada link antar-router |
+| *Default route* hanya di `R-PUSAT`, router lain mendapatkannya otomatis | Satu-satunya *static route* yang tersisa adalah *default* ke `R-ISP` di `R-PUSAT`, dibagikan dengan `default-information originate` |
+| Jika satu link *backbone* putus, konektivitas pulih otomatis | Diuji dengan mematikan link L1 dan L2 |
+
+Arti perintah utama yang dipakai:
+
+| Perintah | Arti |
+| :--- | :--- |
+| `router ospf 1` dan `area 0` | Menyalakan OSPF. Semua router berada dalam satu *area backbone* karena jaringan tidak besar |
+| `router-id` | Identitas unik tiap router di OSPF (`1.1.1.1` sampai `7.7.7.7`) |
+| `network <alamat> <wildcard> area 0` | Menentukan interface yang ikut OSPF dan jaringan yang diumumkan: link `/30` antar-router dan seluruh LAN |
+| `passive-interface default` | Semua interface secara bawaan tidak mengirim pesan OSPF |
+| `no passive-interface <interface link>` | Mengaktifkan OSPF hanya pada link antar-router agar router dapat bertukar informasi |
+| `default-information originate` (hanya `R-PUSAT`) | `R-PUSAT` membagikan jalan menuju internet ke router lain |
+
+LAN pengguna tetap diumumkan lewat `network`, tetapi karena *passive*, tidak ada pesan OSPF yang dikirim ke perangkat di LAN tersebut. Interface `Fa0/0` `R-PUSAT` (arah `R-ISP`) tidak memiliki `network` dan juga *passive*, sehingga tidak ada OSPF ke arah ISP.
+
+
+#### B. Penambahan Link Cadangan L7 (`R-DC` ke `R-UTARA`)
+Blok `10.120.241.56/30` sudah dialokasikan untuk L7 pada tabel VLSM dan belum dipakai link lain, sehingga tabel subnetting tidak berubah.
+
+| Perangkat | Interface | IP | Prefix |
+| :--- | :--- | :--- | :--- |
+| `R-DC` | `FastEthernet3/0` | `10.120.241.57` | `/30` |
+| `R-UTARA` | `FastEthernet4/0` | `10.120.241.58` | `/30` |
+
+Seluruh port `R-DC` (`Fa0/0` untuk L1, `Fa1/0` untuk CCTV Kota, `Fa2/0` untuk Server dan Storage DC) dan `R-UTARA` (`Fa0/0` sampai `Fa3/0`) sudah terpakai. Karena itu kami menambah satu modul `PT-ROUTER-NM-1CFE` (1 port *FastEthernet* tembaga) pada masing-masing router: router dimatikan, modul dipasang di slot kosong, lalu router dinyalakan lagi. Port baru yang muncul adalah **`Fa3/0` di `R-DC`** dan **`Fa4/0` di `R-UTARA`**, lalu keduanya dihubungkan dengan kabel *Copper Cross-Over*.
+
 ```text
-! [Placeholder Konfigurasi router ospf di masing-masing router]
+! --- R-DC ---
+enable
+configure terminal
+interface FastEthernet3/0
+ description L7 ke R-UTARA
+ ip address 10.120.241.57 255.255.255.252
+ no shutdown
+end
+
+! --- R-UTARA ---
+enable
+configure terminal
+interface FastEthernet4/0
+ description L7 ke R-DC
+ ip address 10.120.241.58 255.255.255.252
+ no shutdown
+end
 ```
+
+#### C. Rincian Konfigurasi OSPF per Router
+
+| Router | Router-ID | Interface link (OSPF aktif) | Interface LAN (*passive*) |
+| :--- | :--- | :--- | :--- |
+| `R-PUSAT` | `1.1.1.1` | `Fa0/1` (L2), `Eth0/0/0` (L1), `Eth0/1/0` (L5), `Eth0/2/0` (L4), `Eth0/3/0` (L3) | `Fa1/0`, `Fa1/1` (`Fa0/0` ke `R-ISP` juga *passive*) |
+| `R-DC` | `2.2.2.2` | `Fa0/0` (L1), `Fa3/0` (L7) | `Fa1/0`, `Fa2/0` |
+| `R-UTARA` | `3.3.3.3` | `Fa3/0` (L2), `Fa2/0` (L6), `Fa4/0` (L7) | `Fa0/0`, `Fa1/0` |
+| `R-PELABUHAN` | `4.4.4.4` | `Gi0/0` (L6) | `Gi0/1`, `Gi0/2` |
+| `R-SELATAN` | `5.5.5.5` | `Fa0/0` (L3) | `Fa1/0`, `Fa2/0` |
+| `R-TIMUR` | `6.6.6.6` | `Fa0/0` (L4) | `Fa1/0`, `Fa2/0` |
+| `R-BARAT` | `7.7.7.7` | `Fa0/0` (L5) | `Fa1/0`, `Fa2/0` |
+
+```text
+! ==========================================
+! OSPF R-PUSAT
+! ==========================================
+enable
+configure terminal
+router ospf 1
+ router-id 1.1.1.1
+ passive-interface default                          ! Semua interface diam, tidak kirim pesan OSPF
+ no passive-interface FastEthernet0/1               ! Buka L2 ke R-UTARA
+ no passive-interface Ethernet0/0/0                 ! Buka L1 ke R-DC
+ no passive-interface Ethernet0/1/0                 ! Buka L5 ke R-BARAT
+ no passive-interface Ethernet0/2/0                 ! Buka L4 ke R-TIMUR
+ no passive-interface Ethernet0/3/0                 ! Buka L3 ke R-SELATAN
+ network 10.120.241.32 0.0.0.3 area 0               ! L1
+ network 10.120.241.36 0.0.0.3 area 0               ! L2
+ network 10.120.241.40 0.0.0.3 area 0               ! L3
+ network 10.120.241.44 0.0.0.3 area 0               ! L4
+ network 10.120.241.48 0.0.0.3 area 0               ! L5
+ network 10.120.224.0 0.0.7.255 area 0              ! LAN Pegawai Balai Kota (/21)
+ network 10.120.241.0 0.0.0.31 area 0               ! LAN Server Balai Kota (/27)
+ default-information originate                      ! Bagikan default route ke router lain
+end
+write memory
+
+! ==========================================
+! OSPF R-DC
+! ==========================================
+enable
+configure terminal
+router ospf 1
+ router-id 2.2.2.2
+ passive-interface default
+ no passive-interface FastEthernet0/0               ! L1
+ no passive-interface FastEthernet3/0               ! L7
+ network 10.120.241.32 0.0.0.3 area 0
+ network 10.120.241.56 0.0.0.3 area 0
+ network 10.120.96.0 0.0.31.255 area 0              ! LAN CCTV Kota (/19)
+ network 10.120.239.0 0.0.0.255 area 0              ! LAN Server dan Storage DC (/24)
+end
+write memory
+
+! ==========================================
+! OSPF R-UTARA
+! ==========================================
+enable
+configure terminal
+router ospf 1
+ router-id 3.3.3.3
+ passive-interface default
+ no passive-interface FastEthernet2/0               ! L6
+ no passive-interface FastEthernet3/0               ! L2
+ no passive-interface FastEthernet4/0               ! L7
+ network 10.120.241.36 0.0.0.3 area 0
+ network 10.120.241.52 0.0.0.3 area 0
+ network 10.120.241.56 0.0.0.3 area 0
+ network 10.120.0.0 0.0.63.255 area 0               ! LAN WiFi Publik Utara (/18)
+ network 10.120.236.0 0.0.1.255 area 0              ! LAN Sensor Lalu Lintas Utara (/23)
+end
+write memory
+
+! ==========================================
+! OSPF R-PELABUHAN
+! ==========================================
+enable
+configure terminal
+router ospf 1
+ router-id 4.4.4.4
+ passive-interface default
+ no passive-interface GigabitEthernet0/0            ! L6
+ network 10.120.241.52 0.0.0.3 area 0
+ network 10.120.160.0 0.0.31.255 area 0             ! LAN Sensor dan SCADA Pelabuhan (/19)
+ network 10.120.240.0 0.0.0.127 area 0              ! LAN Kantor Pelabuhan (/25)
+end
+write memory
+
+! ==========================================
+! OSPF R-SELATAN
+! ==========================================
+enable
+configure terminal
+router ospf 1
+ router-id 5.5.5.5
+ passive-interface default
+ no passive-interface FastEthernet0/0               ! L3
+ network 10.120.241.40 0.0.0.3 area 0
+ network 10.120.64.0 0.0.31.255 area 0              ! LAN WiFi Publik Selatan (/19)
+ network 10.120.240.128 0.0.0.127 area 0            ! LAN PJU Pintar Selatan (/25)
+end
+write memory
+
+! ==========================================
+! OSPF R-TIMUR
+! ==========================================
+enable
+configure terminal
+router ospf 1
+ router-id 6.6.6.6
+ passive-interface default
+ no passive-interface FastEthernet0/0               ! L4
+ network 10.120.241.44 0.0.0.3 area 0
+ network 10.120.128.0 0.0.31.255 area 0             ! LAN WiFi Publik Timur (/19)
+ network 10.120.232.0 0.0.3.255 area 0              ! LAN Sensor Banjir Timur (/22)
+end
+write memory
+
+! ==========================================
+! OSPF R-BARAT
+! ==========================================
+enable
+configure terminal
+router ospf 1
+ router-id 7.7.7.7
+ passive-interface default
+ no passive-interface FastEthernet0/0               ! L5
+ network 10.120.241.48 0.0.0.3 area 0
+ network 10.120.192.0 0.0.31.255 area 0             ! LAN WiFi Publik Barat (/19)
+ network 10.120.238.0 0.0.0.255 area 0              ! LAN Puskesmas dan Sekolah Barat (/24)
+end
+write memory
+```
+
+#### D. Penghapusan Static Route
+Router lebih mengutamakan *static route* daripada OSPF (*administrative distance* 1 melawan 110, makin kecil makin diutamakan). Selama *static route* masih ada, hasil OSPF tidak terlihat. Karena itu OSPF dipasang dan dipastikan semua tetangga berstatus `FULL` terlebih dahulu, baru *static route* dihapus. Urutan: `R-BARAT`, `R-TIMUR`, `R-SELATAN`, `R-DC`, `R-PELABUHAN`, `R-UTARA`, dan `R-PUSAT` paling akhir. Daftar *static route* dilihat dengan `show running-config | include ip route`.
+
+| Router | *Static route* yang dihapus |
+| :--- | :--- |
+| `R-BARAT`, `R-TIMUR`, `R-SELATAN`, `R-DC` | *Default route* ke `R-PUSAT` |
+| `R-PELABUHAN` | *Default* via `10.120.241.53`, rute `10.120.241.36/30` via `10.120.241.53`, dan dua rute ke Balai Kota (`10.120.224.0/21`, `10.120.241.0/27`) via `192.168.15.1` |
+| `R-UTARA` | *Default* via `10.120.241.37` dan dua rute ke LAN Pelabuhan (`10.120.160.0/19`, `10.120.240.0/25`) via `10.120.241.54` |
+| `R-PUSAT` | 15 rute: 10 rute ke LAN `R-DC`, `R-UTARA`, `R-SELATAN`, `R-TIMUR`, `R-BARAT`, rute `10.120.241.52/30`, dua rute ke LAN Pelabuhan lewat tunnel `192.168.15.2`, dan dua rute cadangan (AD 5). *Default* ke `203.0.113.62` **dipertahankan** |
+
+
+
+```text
+! --- R-BARAT ---
+enable
+configure terminal
+no ip route 0.0.0.0 0.0.0.0 10.120.241.49
+end
+write memory
+
+! --- R-TIMUR ---
+enable
+configure terminal
+no ip route 0.0.0.0 0.0.0.0 10.120.241.45
+end
+write memory
+
+! --- R-SELATAN ---
+enable
+configure terminal
+no ip route 0.0.0.0 0.0.0.0 10.120.241.41
+end
+write memory
+
+! --- R-DC ---
+enable
+configure terminal
+no ip route 0.0.0.0 0.0.0.0 10.120.241.33
+end
+write memory
+
+! --- R-PELABUHAN ---
+enable
+configure terminal
+no ip route 0.0.0.0 0.0.0.0 10.120.241.53
+no ip route 10.120.241.36 255.255.255.252 10.120.241.53
+no ip route 10.120.224.0 255.255.248.0 192.168.15.1
+no ip route 10.120.241.0 255.255.255.224 192.168.15.1
+end
+write memory
+
+! --- R-UTARA ---
+enable
+configure terminal
+no ip route 0.0.0.0 0.0.0.0 10.120.241.37
+no ip route 10.120.160.0 255.255.224.0 10.120.241.54
+no ip route 10.120.240.0 255.255.255.128 10.120.241.54
+end
+write memory
+
+! --- R-PUSAT (semua dihapus kecuali default ke 203.0.113.62) ---
+enable
+configure terminal
+no ip route 10.120.96.0 255.255.224.0 10.120.241.34
+no ip route 10.120.239.0 255.255.255.0 10.120.241.34
+no ip route 10.120.0.0 255.255.192.0 10.120.241.38
+no ip route 10.120.236.0 255.255.254.0 10.120.241.38
+no ip route 10.120.64.0 255.255.224.0 10.120.241.42
+no ip route 10.120.240.128 255.255.255.128 10.120.241.42
+no ip route 10.120.128.0 255.255.224.0 10.120.241.46
+no ip route 10.120.232.0 255.255.252.0 10.120.241.46
+no ip route 10.120.192.0 255.255.224.0 10.120.241.50
+no ip route 10.120.238.0 255.255.255.0 10.120.241.50
+no ip route 10.120.241.52 255.255.255.252 10.120.241.38
+no ip route 10.120.160.0 255.255.224.0 192.168.15.2
+no ip route 10.120.240.0 255.255.255.128 192.168.15.2
+no ip route 10.120.160.0 255.255.224.0 10.120.241.38 5
+no ip route 10.120.240.0 255.255.255.128 10.120.241.38 5
+end
+write memory
+```
+
+#### E. Catatan Desain: Tunnel GRE pada File OSPF
+* `Tunnel0` (`R-PUSAT` dan `R-PELABUHAN`) **tidak dimasukkan ke OSPF**. Alasannya, alamat ujung tunnel dipelajari lewat OSPF. Jika tunnel juga ikut OSPF, router dapat mencari jalan menuju ujung tunnel melalui tunnel itu sendiri (*recursive routing*) sehingga tunnel mati.
+* *Static route* soal 6 (rute Balai Kota ke Pelabuhan lewat tunnel beserta rute cadangannya) ikut dihapus sesuai ketentuan mengganti seluruh *static route* dengan OSPF. Akibatnya, pada file OSPF lalu lintas Balai Kota ke Pelabuhan tidak lagi dipaksa lewat tunnel. Ketentuan soal 6 dibuktikan pada file utama.
+
+#### F. Penjelasan Tambahan
+* Selama L1 normal, jalur `R-DC` ke `R-PUSAT` lewat L1 lebih pendek (satu link) dibanding lewat L7 dan `R-UTARA` (dua link), sehingga OSPF memilih L1 dan L7 hanya menjadi cadangan.
+* *Default route* tampil sebagai `O*E2` di router lain karena berasal dari luar OSPF (*static route* di `R-PUSAT` yang dibagikan ulang), yaitu *external type 2*.
+* Link antar-router berjenis Ethernet (*broadcast*), sehingga OSPF memilih satu *Designated Router* (DR) dan satu *Backup DR* (BDR) pada tiap link. Itu sebabnya status tetangga tertulis `FULL/DR` atau `FULL/BDR`.
 
 ---
 
@@ -588,7 +906,7 @@ ping mail.k15.smartcity.lab
 
 #### Hasil
 
-![alt text](image-1.png)
+![alt text](assets/image-1.png)
 
 **Analisis:**
 
@@ -639,7 +957,7 @@ Lalu klik **Go**.
 
 #### Hasil
 
-![alt text](image-2.png)
+![alt text](assets/image-2.png)
 
 **Analisis:** halaman dibuka dari **PJU Pintar Selatan** (LAN di bawah R-SELATAN), yaitu wilayah yang berbeda dari lokasi server. Halaman tampil lengkap dengan judul **"Portal Smart City Surabaya"** dan **"Kelompok 15"**, dan diakses memakai nama domain, bukan IP. ✅
 
@@ -689,7 +1007,7 @@ quit
 
 #### Hasil
 
-![alt text](image-3.png)
+![alt text](assets/image-3.png)
 
 
 **Analisis:**
@@ -745,7 +1063,7 @@ quit
 
 #### Hasil
 
-![alt text](image-4.png)
+![alt text](assets/image-4.png)
 
 **Analisis:**
 
@@ -766,8 +1084,21 @@ quit
 ---
 
 ### 4.2 Bukti Pengujian Soal 2 (Tabel Subnetting)
-* **Tampilan Tabel VLSM, CIDR, dan Tabel Revisi pada Spreadsheet:**
-  ![Placeholder Bukti Tabel Subnetting](./screenshots/placeholder_bukti_soal2_subnetting.png)
+![alt text](assets/image-12.png)
+![alt text](assets/image-11.png)
+![alt text](assets/image-13.png)
+![alt text](assets/image-14.png)
+![alt text](assets/image-15.png)
+![alt text](assets/image-16.png)
+![alt text](assets/image-17.png)
+![alt text](assets/image-18.png)
+![alt text](assets/image-19.png)
+![alt text](assets/image-20.png)
+![alt text](assets/image-21.png)
+![alt text](assets/image-22.png)
+
+dst
+
 
 ---
 
@@ -816,42 +1147,131 @@ quit
 ---
 
 ### 4.5 Bukti Pengujian Soal 5 (NAT)
-> **[PLACEHOLDER BUKTI SOAL 5 - BAGIAN REKAN KELOMPOK]**
-* **Bukti Ping dari PC Klien ke Server Internet `8.8.8.8` & Output `show ip nat translations`:**
-  ![Placeholder Bukti NAT](./screenshots/placeholder_bukti_soal5_nat.png)
+
+1. **Verifikasi Konfigurasi NAT pada `R-PUSAT` (`show running-config | include ip nat`):**  
+   Membuktikan bahwa `R-PUSAT` memiliki 1 interface `ip nat outside`, 7 interface `ip nat inside`, serta aturan `ip nat inside source list 1 interface FastEthernet0/0 overload`.
+![alt text](assets/image-23.png)
+
+2. **Uji Akses ke Server Internet dari PC `CCTV Kota` (`ipconfig` dan `ping 8.8.8.8`):**  
+   PC `CCTV Kota` (`10.120.96.10`) berhasil melakukan *ping* ke `8.8.8.8` dengan TTL 125 (melewati `R-DC`, `R-PUSAT`, dan `R-ISP`). Satu atau dua paket pertama dapat *timeout* karena proses ARP, paket berikutnya membalas.
+![alt text](assets/image-24.png)
+![alt text](assets/image-25.png)
+
+3. **Uji Akses ke Server Internet dari Berbagai Wilayah:**  
+   *Ping* ke `8.8.8.8` dari PC di wilayah lain (Pegawai Balai Kota, WiFi Utara, Selatan, Timur, Barat, dan Pelabuhan) seluruhnya berhasil.
+![alt text](assets/image-26.png)
+![alt text](assets/image-27.png)
+![alt text](assets/image-28.png)
+![alt text](assets/image-29.png)
+![alt text](assets/image-30.png)
+![alt text](assets/image-31.png)
+![alt text](assets/image-32.png)
+![alt text](assets/image-33.png)
+![alt text](assets/image-34.png)
+![alt text](assets/image-35.png)
+![alt text](assets/image-36.png)
+
+
+4. **Verifikasi Tabel Translasi NAT (`show ip nat translations`):**  
+   Alamat privat PC `Pegawai Balai Kota` (*Inside local* `10.120.224.11`) diterjemahkan menjadi satu IP publik yang sama, `203.0.113.61` (*Inside global*), dengan nomor *port* berbeda untuk setiap sesi, menuju `8.8.8.8`. Perintah dijalankan saat *ping* masih berlangsung karena entri ICMP kedaluwarsa dalam sekitar 60 detik.
+   ![alt text](assets/image-37.png)
+
+
+
+5. **Verifikasi Statistik NAT (`show ip nat statistics`):**  
+   Menunjukkan *outside interface* `FastEthernet0/0`, tujuh *inside interface*, `Total translations: 8 (8 dynamic, 8 extended)`, dan angka *Hits* yang naik.
+   ![alt text](assets/image-38.png)
+
+6. **Verifikasi `R-ISP` Tidak Memiliki Rute ke Alamat Privat (`show ip route` dan `ping 10.120.239.2`):**  
+   `show ip route` di `R-ISP` hanya berisi dua rute *connected* (`8.8.8.0/24` dan `203.0.113.60/30`) tanpa *gateway of last resort*, dan *ping* dari `R-ISP` ke `10.120.239.2` gagal 0 dari 5 paket. Ini karena `R-ISP` hanya memiliki dua interface yang dikonfigurasi, tanpa *static route* dan tanpa *routing* dinamis.
+   ![alt text](assets/image-39.png)
 
 ---
 
 ### 4.6 Bukti Pengujian Soal 6 (Tunnel GRE)
-> **[PLACEHOLDER BUKTI SOAL 6 - BAGIAN REKAN KELOMPOK]**
+
 * **Bukti Status Interface Tunnel Up & Output `tracert` dari Balai Kota ke Pelabuhan melewati IP Tunnel:**
 
-  ![alt text](image.png)
+  ![alt text](assets/image.png)
 
 ---
 
 ### 4.7 Bukti Pengujian Soal 7 (Dynamic Routing OSPF)
-> **[PLACEHOLDER BUKTI SOAL 7 - BAGIAN REKAN KELOMPOK]**
-* **Bukti Tabel Routing OSPF (`show ip route ospf`) & Pengujian *Failover* Saat Link Utama Putus:**
-  ![Placeholder Bukti OSPF](./screenshots/placeholder_bukti_soal7_ospf.png)
+
+1. **Bukti Port Baru untuk Link L7 pada `R-DC` dan `R-UTARA` (`show ip interface brief`):**  
+   Menunjukkan `Fa3/0` pada `R-DC` dan `Fa4/0` pada `R-UTARA` setelah modul `PT-ROUTER-NM-1CFE` dipasang.
+   ![alt text](assets/image-40.png)
+   ![alt text](assets/image-41.png)
+
+2. **Uji Konektivitas Link L7 (`ping 10.120.241.58` dari `R-DC`):**  
+   Berhasil **100% (5/5)**.
+   ![alt text](assets/image-42.png)
+
+3. **Verifikasi Tetangga OSPF (`show ip ospf neighbor`):**  
+   `R-PUSAT` memiliki 5 tetangga (`3.3.3.3`, `7.7.7.7`, `2.2.2.2`, `6.6.6.6`, `5.5.5.5`), `R-UTARA` memiliki 3 tetangga (`4.4.4.4`, `1.1.1.1`, `2.2.2.2` lewat L7), dan `R-DC` memiliki 2 tetangga (`1.1.1.1`, `3.3.3.3`). Seluruhnya berstatus `FULL`.
+   ![alt text](assets/image-43.png)
+   ![alt text](assets/image-44.png)
+   ![alt text](assets/image-45.png)
+
+4. **Verifikasi Tidak Ada *Static Route* Tersisa (`show running-config | include ip route`):**  
+   `R-PUSAT` hanya menampilkan satu baris, yaitu `ip route 0.0.0.0 0.0.0.0 203.0.113.62`. `R-BARAT`, `R-UTARA`, dan `R-PELABUHAN` kosong.
+   ![alt text](assets/image-46.png)
+   ![alt text](assets/image-47.png)
+   ![alt text](assets/image-48.png)
+   ![alt text](assets/image-49.png)
+   ![alt text](assets/image-50.png)
+   ![alt text](assets/image-51.png)
+   ![alt text](assets/image-52.png)
+
+5. **Verifikasi *Default Route* Didapat Lewat OSPF (`show ip route 0.0.0.0`) dan Akses Internet:**  
+   Di `R-BARAT`, `R-TIMUR`, `R-SELATAN`, dan `R-DC`, rute dikenali lewat `ospf 1` (*distance* 110, *metric* 1, *type extern 2*) dari *router-id* `1.1.1.1` (`R-PUSAT`). *Ping* ke `8.8.8.8` berhasil 5 dari 5 paket, sehingga NAT tetap berjalan bersama OSPF.
+   ![alt text](assets/image-53.png)
+   ![alt text](assets/image-54.png)
+   ![alt text](assets/image-55.png)
+   ![alt text](assets/image-56.png)
+
+6. **Verifikasi Tabel Routing `R-PUSAT` (`show ip route`):**  
+   *Gateway of last resort* `203.0.113.62`, rute ke seluruh LAN wilayah lain berkode `O`, dan satu-satunya *static route* adalah `S*` *default* ke `R-ISP`.
+   ![alt text](assets/image-57.png)
+   ![alt text](assets/image-58.png)
+
+7. **Verifikasi OSPF Tidak Dikirim ke LAN Pengguna (`show ip protocols` pada `R-UTARA`):**  
+   *Passive Interface(s)* berisi `FastEthernet0/0` dan `FastEthernet1/0` (dua LAN pengguna), sedangkan interface link (`Fa2/0`, `Fa3/0`, `Fa4/0`) tidak *passive*. *Routing Information Sources* memuat ketujuh *router-id* (`1.1.1.1` sampai `7.7.7.7`).
+   ![alt text](assets/image-59.png)
+
+8. **Uji *Failover* Link L1 (`R-PUSAT` ke `R-DC`) Dimatikan:**  
+   Pengujian dari PC `CCTV Kota` ke Server Balai Kota (`10.120.241.2`).
+   * *Tracert* kondisi normal: `10.120.96.1` (`R-DC`), `10.120.241.33` (`R-PUSAT` lewat L1), `10.120.241.2`.
+   ![alt text](assets/image-60.png)
+   * `ping -t` menunjukkan TTL 126, satu paket `Request timed out`, lalu balasan kembali dengan TTL 125 (satu router lebih banyak).
+   ![alt text](assets/image-62.png)
+   ![alt text](assets/image-63.png)
+   * Mematikan L1 di `R-PUSAT` (`interface Ethernet0/0/0` lalu `shutdown`).
+   ![alt text](assets/image-64.png)
+   * *Tracert* saat L1 mati: `10.120.96.1` (`R-DC`), `10.120.241.58` (`R-UTARA` lewat L7), `10.120.241.37` (`R-PUSAT` lewat L2), `10.120.241.2`. Koneksi pulih otomatis lewat jalur lain.
+   ![alt text](assets/image-61.png)
+
+9.  **Kondisi Kembali Normal Setelah Link Dinyalakan (`no shutdown`):**  
+    Seluruh interface `R-PUSAT` kembali `up/up`, `show ip ospf neighbor` menampilkan lima tetangga `FULL`, dan *tracert* ke `10.120.241.2` kembali lewat `10.120.241.33`.
+    ![alt text](assets/image-65.png)
+    ![alt text](assets/image-66.png)
 
 ---
 
 ### 4.8 Bukti Pengujian Soal 8 (Layanan Aplikasi Smart City)
-> **[PLACEHOLDER BUKTI SOAL 8 - BAGIAN REKAN KELOMPOK]**
+
 1. **Bukti 8 - A:**
 
-![alt text](image-1.png)   
+![alt text](assets/image-1.png)   
 
 2. **Bukti 8 - B:**
 
-![alt text](image-2.png)
+![alt text](assets/image-2.png)
    
 3. **Bukti 8 - D:**
 
-![alt text](image-3.png)
+![alt text](assets/image-3.png)
 
 4. **Bukti 8 - D:**
 
-![alt text](image-4.png)
-   
+![alt text](assets/image-4.png)
